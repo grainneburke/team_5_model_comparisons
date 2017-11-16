@@ -1,5 +1,9 @@
 #Packages
-packages_list=c("knitr","codetools","devtools","data.table","tm","SnowballC","xml2","rvest","tidyverse","stringr","magrittr","hexView","httr","jsonlite","pbapply","wordcloud","text2vec","xgboost","LDAvis","topicmodels")
+packages_list=c("knitr","codetools","devtools","data.table","tm",
+                "SnowballC","xml2","rvest","tidyverse","stringr",
+                "magrittr","hexView","httr","jsonlite","pbapply",
+                "wordcloud","text2vec","xgboost","LDAvis",
+                "topicmodels", "hunspell")
 for (pkg in packages_list){
   print(paste0("check: ",pkg))
   if(!require(pkg,character.only = T)){
@@ -84,7 +88,7 @@ tm::inspect(text_corpus[sample(1:length(text_corpus),10)])
 stop_words <- tm::stopwords(kind = "en")
 text_corpus <- tm::tm_map(text_corpus,function(x)
   tm::removeWords(x,c(stop_words,
-                      "the","house"))) #add "per" word
+                      "the","house", "permit", "violation"))) #add "per" word
 tm::inspect(text_corpus[sample(1:length(text_corpus),10)])
 
 #remove white space because stop words are replaced by white spaces
@@ -108,3 +112,55 @@ tm::inspect(text_corpus[sample(1:length(text_corpus),10)])
 token <- tm::tm_map(text_corpus, tm::scan_tokenizer)
 
 
+######## Focus on scarce token (observed once)
+token_char <- unlist(lapply(token, as.character))
+token_table <- table(token_char)
+token_table <- token_table[order(token_table, decreasing = T)]
+token_all <- names(token_table)
+token_scarce <- names(token_table[token_table == 1])
+
+
+#Save tokens to a file to use external app for spell checking
+write_lines(x = token_char, path = "./little_tokens.txt")
+
+
+
+###################################################################
+##########         4. Spell checking                 ##############
+###################################################################
+
+# https://www.wordsapi.com/pricing you need to create an account and can access 2500 queries a day for free.
+# http://app.aspell.net/lookup?dict=en_US;words=no%0D%0A%0D%0A%0D%0A
+# http://wordnet.princeton.edu/wordnet/download/current-version/
+# Quang: https://www.r-bloggers.com/hunspell-spell-checker-and-text-parser-for-r/
+
+# word_examples = c("hackathon", "world", "Google", "deep learning")
+# sapply(word_examples, hunspell_find)
+token_all = unique(token_char)
+#########          spelling check using hunspell_check function        ###########
+word.check = sapply(token_all, hunspell_check)
+token.all = data.table("word" = token_all,
+                       "check" = word.check)
+View(token.all[word.check == F])
+########           Correcting the bad words          ################
+corrected.word = sapply(token.all[word.check == F]$word, hunspell_suggest)
+x = head(corrected.word)
+corrected.word[836] = "code zone garage"
+corrected.word = corrected.word[corrected.word != "character(0)"]
+test = unlist(lapply(corrected.word, `[[`, 1), use.names = T)
+bad.word.correction = data.table("old.word" = names(test),
+                                 "new.word" = test)
+fwrite(bad.word.correction, "./bad_word_correction.csv")
+
+###################################################################
+##########               4. Stemming                 ##############
+###################################################################
+# explanation.s, explain.s, explained => explain
+
+# stemmed_tokens <- tm::tm_map(token,tm::stemDocument)
+# save(list = "stemmed_tokens",file = "stemmed_tokens.RData")
+load("stemmed_tokens.RData")
+head_stemmed <- sapply(stemmed_tokens[1:1000],as.character)
+head_token <- sapply(token[1:1000],as.character)
+differences_index <- which(!head_stemmed==head_token)
+head(cbind(head_token,head_stemmed)[differences_index,],10)
