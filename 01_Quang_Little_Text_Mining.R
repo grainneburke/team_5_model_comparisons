@@ -111,7 +111,6 @@ tm::inspect(text_corpus[sample(1:length(text_corpus),10)])
 #simply split the sentences to words
 token <- tm::tm_map(text_corpus, tm::scan_tokenizer)
 
-
 ######## Focus on scarce token (observed once)
 token_char <- unlist(lapply(token, as.character))
 token_table <- table(token_char)
@@ -144,23 +143,118 @@ token.all = data.table("word" = token_all,
 View(token.all[word.check == F])
 ########           Correcting the bad words          ################
 corrected.word = sapply(token.all[word.check == F]$word, hunspell_suggest)
-x = head(corrected.word)
+
+
+#formatting & save the results
 corrected.word[836] = "code zone garage"
 corrected.word = corrected.word[corrected.word != "character(0)"]
 test = unlist(lapply(corrected.word, `[[`, 1), use.names = T)
 bad.word.correction = data.table("old.word" = names(test),
                                  "new.word" = test)
 fwrite(bad.word.correction, "./bad_word_correction.csv")
+correction = data.table("old.word" = token.all$word,
+                        "check" = token.all$check)
+correction = merge(correction, bad.word.correction, by = "old.word", all.x = T)
+correction[, new.word := ifelse(check == TRUE, old.word, new.word)]
+correction = correction[!is.na(new.word), ]
+correction[, check := NULL]
+fwrite(correction, "./correction.csv")
+View(head(correction))
 
 ###################################################################
 ##########               4. Stemming                 ##############
 ###################################################################
 # explanation.s, explain.s, explained => explain
+token.vector = sapply(token, as.character)
+head(token.vector)
+token.table = setDT(data.frame(token.vector))
+token.table = merge(token.table, correction, by.x = "token.vector", by.y = "old.word")
+token.vector = token.table$new.word
+token.corpus = tm::Corpus(tm::VectorSource(x = unique(token.vector)))
 
-# stemmed_tokens <- tm::tm_map(token,tm::stemDocument)
-# save(list = "stemmed_tokens",file = "stemmed_tokens.RData")
-load("stemmed_tokens.RData")
+
+stemmed_tokens <- tm::tm_map(token.corpus, tm::stemDocument)
+save(list = "stemmed_tokens", file = "./stemmed_tokens.RData")
+load("./stemmed_tokens.RData")
 head_stemmed <- sapply(stemmed_tokens[1:1000],as.character)
-head_token <- sapply(token[1:1000],as.character)
+head_token <- sapply(token.corpus[1:1000],as.character)
 differences_index <- which(!head_stemmed==head_token)
 head(cbind(head_token,head_stemmed)[differences_index,],10)
+
+
+b = sapply(stemmed_tokens, as.character)
+names(b) = sapply(token.corpus, as.character)
+
+sentence <- des.data$des.con
+sentence <- str_replace_all(string = sentence, b)
+head(sentence)
+
+text_corpus = tm::Corpus(tm::VectorSource(x = sentence))
+
+
+#String distance
+tdm <- tm::TermDocumentMatrix(text_corpus,
+                              control = list(removePunctuation = TRUE,
+                                             stopwords = TRUE))
+
+#Highest frequency words
+prune_top_words=5
+num_words=1000
+terms <- findFreqTerms(tdm)[prune_top_words:num_words]
+
+text_tf <- tdm[terms,] %>%
+  as.matrix() %>%
+  rowSums()  %>%
+  data.frame(Term = terms, Frequency = .) %>%
+  arrange(desc(Frequency))%>%
+  mutate(rank=1:nrow(.),wordlen=str_length(terms)) %>%
+  arrange(desc(wordlen))
+
+
+# https://stackoverflow.com/questions/19424709/r-gsub-pattern-vector-and-replacement-vector
+a <- paste0(" ",text_tf$Term," ")
+b <- paste0(" ",as.character(text_tf$rank)," ")
+names(b) <- a
+sentence <- str_replace_all(string = sentence, b)
+
+sentence_hashed_ranked <- gsub("[[:alpha:]]","",sentence)
+sentence_hashed_ranked <- gsub("//s+"," ",sentence_hashed_ranked)
+
+data_prepared <- data.frame(Value=des.data$key, Description=sentence_hashed_ranked)
+save(list="data_prepared",file="data_prepared_for_keras_lstm.RData")
+dim(data_prepared)
+
+##############   Create vocab   #############
+feature="Description"
+id="Value"
+label="Value"
+
+train.token <- data_prepared[, feature] %>%tolower %>%word_tokenizer
+
+NLP.train <- text2vec::itoken(train.token,ids = data_prepared[, id], progressbar = FALSE)
+
+NLP.dictionary <- create_vocabulary(NLP.train,stopwords = c(tm::stopwords(kind = 'en'),'construct','constrution','per'), ngram = c(ngram_min=1L,ngram_max=4L))
+tail(NLP.dictionary)
+
+
+
+
+########## Prune vocab       ##################
+NLP.dictionary.pruned <- prune_vocabulary(NLP.dictionary,
+                                          term_count_min = 20,
+                                          doc_proportion_max = 0.5)
+nrow(NLP.dictionary.pruned)
+
+NLP.vectorizer <- vocab_vectorizer(NLP.dictionary.pruned)
+
+
+
+
+
+NLP.matrix.train <- text2vec::create_dtm(NLP.train, NLP.vectorizer)
+dim(NLP.matrix.train)
+final.data = data.frame(as.matrix(NLP.matrix.train))
+final.data$id = as.integer(NLP.train$ids)
+
+data = merge(data, final.data, by.x = "key", by.y = "id", all.x = T)
+saveRDS(data, "./final_data_2_with_des.con_mined.RDS")
