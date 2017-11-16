@@ -76,4 +76,5 @@ data = merge(data, data.911.group,
 
 
 #Write the final db
-fwrite(data, "./final_data_base_1.csv")
+saveRDS(data, "C:/documents/xq.do/Desktop/Hackathon/team_5_model_comparisons/final_data_base_1.RDS")
+#to read the RDS file, use readRDS()
