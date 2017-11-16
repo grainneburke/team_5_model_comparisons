@@ -48,32 +48,39 @@ data.911[, call.911 := 1]
 code.violation = code.violation[is.na(longitude) == F 
                                 & is.na(latitude) == F, ]
 
-code.violation.group = code.violation[, list(nb.violation     = sum(violation),
-                                             case.type        = mode(case.type),
-                                             case.group       = mode(case.group),
-                                             status           = mode(status)),
+
+des.cat = code.violation[, list(des.con          = paste0(description, collapse = ""),
+                                case.type        = paste0(case.type, collapse = ""),
+                                case.group       = paste0(case.group, collapse = ""),
+                                status           = paste0(status, collapse = "")),
+                         by = c("longitude", "latitude")]
+code.violation.group = code.violation[, list(nb.violation     = sum(violation)),
                                       by = c("longitude", "latitude")]
+
+code.violation.group = merge(code.violation.group, des.cat, 
+                             by = c("longitude", "latitude"), 
+                             all.x = T)
 
 data = merge(building.permits, code.violation.group, 
              by = c("longitude", "latitude"), 
              all.x = T)
 
 
-
 #######################    Merge with data.911    ########################
-#data.911
+#delete NA
 data.911 = data.911[is.na(longitude) == F 
                     & is.na(latitude) == F, ]
 
-data.911.group = data.911[, list(type    = mode(type),
-                                 nb.call = sum(call.911)),
+#Create group data
+type.cat = data.911[, list(type          = paste0(type, collapse = "")),
+                         by = c("longitude", "latitude")]
+
+data.911.group = data.911[, list(nb.call = sum(call.911)),
                             by = c("longitude", "latitude")]
 
 data = merge(data, data.911.group, 
              by = c("longitude", "latitude"), 
              all.x = T)
-
-
 
 #Write the final db
 saveRDS(data, "C:/documents/xq.do/Desktop/Hackathon/team_5_model_comparisons/final_data_base_1.RDS")
