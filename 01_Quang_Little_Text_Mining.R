@@ -70,17 +70,41 @@ des.data[, des.con := gsub(des.con, pattern = "/t", replacement = " ")]
 #remove white spaces
 des.data[, des.con := whitespace_rm(des.con)]
 
-
-
 ###################################################################
 ##########              2. Corpus                    ##############
 ###################################################################
 text_corpus = tm::Corpus(tm::VectorSource(x = des.data$des.con))
 tm::inspect(text_corpus[sample(1:length(text_corpus),10)])
 
+#lower case
+text_corpus <- tm::tm_map(text_corpus, tolower)
+tm::inspect(text_corpus[sample(1:length(text_corpus),10)])
+
+#stop words
+stop_words <- tm::stopwords(kind = "en")
+text_corpus <- tm::tm_map(text_corpus,function(x)
+  tm::removeWords(x,c(stop_words,
+                      "the","house"))) #add "per" word
+tm::inspect(text_corpus[sample(1:length(text_corpus),10)])
+
+#remove white space because stop words are replaced by white spaces
+text_corpus <- tm::tm_map(text_corpus, tm::stripWhitespace)
+tm::inspect(text_corpus[sample(1:length(text_corpus),10)])
+
+#Extract a sentence and read it raw ascii
+# set.seed(1)
+# sentence <- text_corpus[[sample(1:length(text_corpus),1)]][1]
+# print(sentence)
+# write_lines(sentence, path = "./sentence_example.txt")
+# sentence_raw <- hexView::readRaw("./sentence_example.txt")
+# sentence_raw
 
 
 
-
+###################################################################
+##########         3. Tokenization                   ##############
+###################################################################
+#simply split the sentences to words
+token <- tm::tm_map(text_corpus, tm::scan_tokenizer)
 
 
