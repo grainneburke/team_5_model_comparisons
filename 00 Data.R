@@ -56,18 +56,20 @@ data = merge(building.permits, code.violation.group,
 
 
 
-#######################    Merge with code.violation    ########################
+#######################    Merge with data.911    ########################
 #data.911
 data.911 = data.911[is.na(longitude) == F 
                     & is.na(latitude) == F, ]
 
-data.911 = code.violation[, list(nb.violation     = sum(violation),
-                                             case.type        = mode(case.type),
-                                             case.group       = mode(case.group),
-                                             status           = mode(status)),
-                                      by = c("longitude", "latitude")]
+data.911.group = data.911[, list(type    = mode(type),
+                                 nb.call = sum(call.911)),
+                            by = c("longitude", "latitude")]
 
-data = merge(data, data.911, 
+data = merge(data, data.911.group, 
              by = c("longitude", "latitude"), 
              all.x = T)
 
+
+
+#Write the final db
+fwrite(data, "./final_data_base_1.csv")
