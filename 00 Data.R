@@ -1,5 +1,5 @@
 library(data.table)
-
+library(lubridate)
 
 mode <- function(x) {
   ux <- unique(x)
@@ -23,39 +23,49 @@ names(building.permits) = tolower(make.names(names(building.permits), unique=TRU
 names(code.violation) = tolower(make.names(names(code.violation), unique=TRUE))
 names(data.911) = tolower(make.names(names(data.911), unique=TRUE))
 
-
-date.var_ = c("application.date", "issue.date", "final.date", "expiration.date")
-for(i in date.var_){building.data[, (i) := mdy(get(i))]}
+#date formatting
+date.var_ = c("date.case.created", "last.inspection.date", "last.inspection.result")
+for(i in date.var_){code.violation[, (i) := as.Date(get(i), "%d/%m/%Y")]}
 rm(date.var_)
-names(code.violation)
 
 
 
 ############################################################
 ######                  MERGING       ######################
 ############################################################
+#add tracking variables
 code.violation[, violation := 1]
 data.911[, call.911 := 1]
+
+
+#######################    Merge with code.violation    ########################
 
 #NA deletion
 code.violation = code.violation[is.na(longitude) == F 
                                 & is.na(latitude) == F, ]
 
-head(code.violation[, list(nb.violation    = sum(violation)),
-                    , .SD[which.max(pt)],
-               by = c("longitude", "latitude")])
+code.violation.group = code.violation[, list(nb.violation     = sum(violation),
+                                             case.type        = mode(case.type),
+                                             case.group       = mode(case.group),
+                                             status           = mode(status)),
+                                      by = c("longitude", "latitude")]
 
-
-data.911 = data.911[is.na(longitude) == F 
-                    & is.na(latitude) == F, ]
-
-
-data = merge(building.permits, code.violation, 
+data = merge(building.permits, code.violation.group, 
              by = c("longitude", "latitude"), 
              all.x = T)
 
-nrow(building.permits) #56881
-nrow(data) #72582
+
+
+#######################    Merge with code.violation    ########################
+#data.911
+data.911 = data.911[is.na(longitude) == F 
+                    & is.na(latitude) == F, ]
+
+data.911 = code.violation[, list(nb.violation     = sum(violation),
+                                             case.type        = mode(case.type),
+                                             case.group       = mode(case.group),
+                                             status           = mode(status)),
+                                      by = c("longitude", "latitude")]
 
 data = merge(data, data.911, 
              by = c("longitude", "latitude"), 
