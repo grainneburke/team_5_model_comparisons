@@ -1,6 +1,7 @@
 library(data.table)
 library(lubridate)
 
+#Necessary functions for further uses
 mode <- function(x) {
   ux <- unique(x)
   ux[which.max(tabulate(match(x, ux)))]
@@ -10,7 +11,6 @@ mode <- function(x) {
 ############################################################
 #########              DATA          #######################
 ############################################################
-
 setwd("C:/documents/xq.do/Desktop/Hackathon/Hack/data/data")
 building.permits = fread("./Building_Permits___Current.csv")
 code.violation = fread("./Code_Violation_Cases.csv")
@@ -26,8 +26,12 @@ names(data.911) = tolower(make.names(names(data.911), unique=TRUE))
 #date formatting
 date.var_ = c("date.case.created", "last.inspection.date", "last.inspection.result")
 for(i in date.var_){code.violation[, (i) := as.Date(get(i), "%d/%m/%Y")]}
-rm(date.var_)
 
+date.var_ = c("application.date", "issue.date", "final.date", "expiration.date")
+for(i in date.var_){building.permits[, (i) := mdy(get(i))]}
+
+#formatting numerical variables
+building.permits[, value := as.numeric(gsub("\\$", "", value))]
 
 
 ############################################################
