@@ -67,6 +67,14 @@ xgbMod_ <- xgboost::xgboost(data           = x.train,
                             maximize       = F,
                             print_every_n  = 50)
 
+install.packages("Ckmeans.1d.dp")
+
+importance_matrix <- xgb.importance(colnames(x.train), model = xgbMod_)
+
+xgb.plot.importance(importance_matrix[1:20], rel_to_first = TRUE, xlab = "Relative importance")
+gg <- xgb.ggplot.importance(importance_matrix[1:20], measure = "Frequency", rel_to_first = TRUE)
+gg + ggplot2::ylab("Frequency")
+
 
 #predict on test set
 value_pred <- predict(xgbMod_, newdata = x.test, type='response')
