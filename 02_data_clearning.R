@@ -4,7 +4,7 @@ library(lubridate)
 
 #############" Data reading "##################
 setwd("C:/documents/xq.do/Desktop/Hackathon/team_5_model_comparisons")
-data = readRDS("./final_data_2_with_des.con_mined.RDS")
+data = readRDS("./data_text_scrap.RDS")
 
 #filter on value > 0
 data = data[value > 0, ]
@@ -43,6 +43,8 @@ sum(is.na(data))
 ######################################################################
 ##############              Modelling                #################
 ######################################################################
+library(mltools)
+data = one_hot(dt = setDT(data), sparsifyNAs = T) 
 
 dt.size = nrow(data)
 set.seed(1337)
@@ -50,7 +52,8 @@ train_sample = sample(1:dt.size,round(.7*dt.size))
 
 train = data[train_sample, ]
 test = data[-train_sample, ]
-
+rm(data)
+gc()
 
 y.train = train$value
 x.train = subset(train, select= -c(value))
@@ -64,7 +67,7 @@ rm(train)
 rm(test)
 gc()
 
-# saveRDS(x.train, "./x.train.RDS")
-# saveRDS(x.test, "./x.test.RDS")
-# saveRDS(y.train, "./y.train.RDS")
-# saveRDS(y.test, "./y.test.RDS")
+saveRDS(x.train, "./x.train.RDS")
+saveRDS(x.test, "./x.test.RDS")
+saveRDS(y.train, "./y.train.RDS")
+saveRDS(y.test, "./y.test.RDS")
